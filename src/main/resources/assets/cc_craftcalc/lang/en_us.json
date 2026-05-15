@@ -1,0 +1,8 @@
+{
+  "craftcalculator.error.invalid_item": "Invalid item id. Use namespace:item (example: minecraft:oak_planks).",
+  "craftcalculator.error.usage": "Usage: /cc <item> <amount>",
+  "craftcalculator.error.singleplayer_only": "This command can only be used in Singleplayer.",
+  "craftcalculator.error.no_world": "World is not loaded yet.",
+  "craftcalculator.error.no_recipe": "This item does not have an available craft.",
+  "craftcalculator.result.header": "Required items for %s x %s"
+}
