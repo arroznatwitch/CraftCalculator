@@ -12,6 +12,7 @@
     "issues": "https://github.com/arroznatwitch/craftcalculator/issues"
   },
   "license": "MIT",
+  "icon": "assets/cc_craftcalc-icon/icon.jpg",
   "environment": "client",
   "entrypoints": {
     "client": [
