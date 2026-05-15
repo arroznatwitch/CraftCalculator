@@ -27,6 +27,10 @@ import net.minecraft.util.context.ContextMap;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -198,9 +202,65 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             String literal) {
         dispatcher.register(
                 ClientCommands.literal(literal)
+                        .then(ClientCommands.literal("testcrafts").executes(CraftCalculatorMod::testCrafts))
                         .then(ClientCommands.argument("input", StringArgumentType.greedyString())
                                 .suggests(CraftCalculatorMod::suggestItems)
                                 .executes(CraftCalculatorMod::execute)));
+    }
+
+    // Command: /cc testcrafts
+    private static int testCrafts(CommandContext<FabricClientCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null) throw NO_WORLD.create();
+        if (!mc.isLocalServer())                   throw NOT_SINGLEPLAYER.create();
+        if (mc.getSingleplayerServer() == null)    throw NOT_SINGLEPLAYER.create();
+
+        RecipeManager rm = mc.getSingleplayerServer().getRecipeManager();
+
+        List<String> report = new ArrayList<>();
+        for (RecipeHolder<?> h : rm.getRecipes()) {
+            if (!(h.value() instanceof CraftingRecipe cr)) continue;
+            String idStr = h.id().toString();
+            ItemStack out = getOutputStack(cr);
+            String outDesc = out.isEmpty() ? "<empty>" : (itemKey(out.getItem()) + " x" + out.getCount());
+            List<String> problems = new ArrayList<>();
+
+            if (out.isEmpty()) problems.add("Missing output");
+
+            int slot = 0;
+            for (Ingredient ing : cr.placementInfo().ingredients()) {
+                slot++;
+                if (ing.isEmpty()) continue;
+                List<Item> options = ing.items().map(hh -> hh.value()).filter(i -> i != Items.AIR).toList();
+                if (options.isEmpty()) {
+                    problems.add("Ingredient#" + slot + " has no options");
+                }
+            }
+
+            String line = idStr + " -> " + outDesc;
+            if (!problems.isEmpty()) line += "  PROBLEMS: " + String.join(", ", problems);
+            report.add(line);
+        }
+
+        try {
+            Path gameDir = mc.gameDirectory.toPath();
+            Path outDir = gameDir.resolve("mods").resolve("craftcalculator-testcrafts");
+            Files.createDirectories(outDir);
+
+            int fileIndex = 0;
+            for (int i = 0; i < report.size(); i += 100) {
+                List<String> part = report.subList(i, Math.min(i + 100, report.size()));
+                Path file = outDir.resolve(String.format("testcrafts_%03d.txt", ++fileIndex));
+                Files.write(file, part, StandardCharsets.UTF_8);
+            }
+
+            ctx.getSource().sendFeedback(Component.literal("Wrote " + report.size() + " recipes to " + outDir.toString()).withStyle(ChatFormatting.GREEN));
+        } catch (IOException e) {
+            sendError(ctx, Component.literal("Failed to write report: " + e.getMessage()));
+            return 0;
+        }
+
+        return Command.SINGLE_SUCCESS;
     }
 
     // Main command handler - parses input and expands recipes
@@ -238,28 +298,24 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         Requirements req = new Requirements();
         Set<String> guard = new HashSet<>();
 
-        boolean hadRecipe = collectRequirements(itemKey(item), amount, rm, req, guard);
+        // Collect requirements for the target item specially (root) so we don't
+        // record the target itself as a craft requirement (avoids circular "1x Dispenser" entries).
+        boolean hadRecipe = collectRequirements(itemKey(item), amount, rm, req, guard, true);
         if (!hadRecipe) {
             sendError(ctx, Component.translatable(MODID + ".error.no_recipe"));
             return 0;
         }
 
-        // Compute craft operations needed for each craftable item
-        Map<String, Long> craftOps = new HashMap<>();
-        for (Map.Entry<String, Long> e : req.craftItems.entrySet()) {
-            Item it = resolveItem(e.getKey());
-            long neededItems = e.getValue();
-            long produced = 1;
-            Optional<RecipeHolder<CraftingRecipe>> h = findRecipeFor(it, rm);
-            if (h.isPresent()) produced = Math.max(1, getOutputStack(h.get().value()).getCount());
-            long ops = (long) Math.ceil((double) neededItems / produced);
-            craftOps.put(e.getKey(), ops);
-        }
 
-        // Fully expand craftable items into base raw totals
-        Map<String, Long> totalRaw = new HashMap<>(req.rawMaterials);
+        // Combine raw materials and craftable ingredient items into a single
+        // final list. We intentionally do NOT expand craftable ingredients
+        // (e.g. Bow) to their raw components here — the user prefers to see
+        // the craftable item itself listed.
+        Map<String, Long> totalRaw = new HashMap<>();
+        totalRaw.putAll(req.rawMaterials);
+        // Add craftable ingredients as their own entries (not expanded)
         for (Map.Entry<String, Long> e : req.craftItems.entrySet()) {
-            expandToRaw(e.getKey(), e.getValue(), rm, totalRaw, new HashSet<>());
+            totalRaw.merge(e.getKey(), e.getValue(), Long::sum);
         }
 
         // Display results
@@ -269,20 +325,6 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         ctx.getSource().sendFeedback(Component.literal("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").withStyle(ChatFormatting.YELLOW));
         ctx.getSource().sendFeedback(Component.literal(""));
 
-        if (!req.craftItems.isEmpty()) {
-            ctx.getSource().sendFeedback(Component.literal("Crafts required:").withStyle(ChatFormatting.GOLD));
-            List<String> craftKeys = new ArrayList<>(req.craftItems.keySet());
-            craftKeys.sort(String::compareTo);
-            for (String k : craftKeys) {
-                long count = req.craftItems.get(k);
-                long ops = craftOps.getOrDefault(k, 0L);
-                String display = resolveDisplayName(k);
-                ctx.getSource().sendFeedback(Component.literal("  ✦ " + count + "x " + display + " (" + ops + " crafts)").withStyle(ChatFormatting.YELLOW));
-            }
-            ctx.getSource().sendFeedback(Component.literal(""));
-        }
-
-        ctx.getSource().sendFeedback(Component.literal("Raw materials needed:").withStyle(ChatFormatting.GOLD));
         List<Map.Entry<String, Long>> rawEntries = new ArrayList<>(totalRaw.entrySet());
         rawEntries.sort(Comparator.comparing(Map.Entry::getKey));
         for (Map.Entry<String, Long> e : rawEntries) {
@@ -314,7 +356,8 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             long need,
             RecipeManager rm,
             Requirements out,
-            Set<String> guard
+            Set<String> guard,
+            boolean isRoot
     ) {
         if (isSentinel(targetKey)) {
             out.rawMaterials.merge(targetKey, need, Long::sum);
@@ -338,8 +381,11 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             return false;
         }
 
-        // This item is craftable — record how many items (not craft ops) are needed
-        out.craftItems.merge(targetKey, need, Long::sum);
+        // This item is craftable — record how many items (not craft ops) are needed.
+        // However, if this is the original target we're analysing (isRoot==true),
+        // we avoid recording the target itself as a craft requirement to prevent
+        // showing "1x Dispenser" as an ingredient for crafting a Dispenser.
+        if (!isRoot) out.craftItems.merge(targetKey, need, Long::sum);
 
         if (guard.contains(targetKey)) return true;
         guard.add(targetKey);
@@ -363,8 +409,10 @@ public final class CraftCalculatorMod implements ClientModInitializer {
                     String opt = itemKey(options.get(0));
                     Item optItem = resolveItem(opt);
                     if (optItem != null && findRecipeFor(optItem, rm).isPresent() && !BASE_MATERIALS.contains(optItem)) {
+                        // Non-root recursive craftable ingredients should be recorded
+                        // as craft requirements.
                         out.craftItems.merge(opt, crafts, Long::sum);
-                    } else {
+                    } else if (BASE_MATERIALS.contains(optItem)) {
                         out.rawMaterials.merge(opt, crafts, Long::sum);
                     }
                 }
@@ -373,7 +421,7 @@ public final class CraftCalculatorMod implements ClientModInitializer {
                 Item optItem = resolveItem(opt);
                 if (optItem != null && findRecipeFor(optItem, rm).isPresent() && !BASE_MATERIALS.contains(optItem)) {
                     out.craftItems.merge(opt, crafts, Long::sum);
-                } else {
+                } else if (BASE_MATERIALS.contains(optItem)) {
                     out.rawMaterials.merge(opt, crafts, Long::sum);
                 }
             }
@@ -443,15 +491,16 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         if (isSentinel(key)) return "";
         Item item = resolveItem(key);
         if (item == null) return "";
-        // Fallback: assume standard max stack 64. Runtime mappings may expose exact stack sizes,
-        // but using 64 gives a useful packs estimate for stackable blocks.
+        // Use standard max stack 64 as a reasonable default for pack estimates.
         int maxStack = 64;
-        int shulkerCapacity = 27 * maxStack;
+        int shulkerCapacity = 27 * maxStack; // items per shulker box
         if (qty < shulkerCapacity) return "";
-        long packs = qty / shulkerCapacity;
-        long rem = qty % shulkerCapacity;
-        String s = "[" + packs + " Packs / " + shulkerCapacity + " SB" + (rem > 0 ? ", +" + rem : "") + "]";
-        return s;
+
+        double sbCount = (double) qty / (double) shulkerCapacity;
+        // Format with one decimal place (e.g. 1.1, 1.2) which is more intuitive than showing
+        // the raw capacity number (1728). This matches the user's preference.
+        String sbStr = String.format(Locale.ROOT, "%.1f", sbCount);
+        return "[" + sbStr + " SB]";
     }
 
     private static String classifyGroup(List<Item> options) {
