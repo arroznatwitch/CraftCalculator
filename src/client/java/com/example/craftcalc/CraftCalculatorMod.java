@@ -48,22 +48,22 @@ public final class CraftCalculatorMod implements ClientModInitializer {
 
     // Sentinel keys for multi-choice ingredients (e.g., any oak log, spruce planks, etc.)
     // Keys starting with "__" are never looked up in the item registry
-    private static final String KEY_ANY_WOOD_LOG    = "__any_wood_log__";
+    private static final String KEY_ANY_WOOD_LOG = "__any_wood_log__";
     private static final String KEY_ANY_WOOD_PLANKS = "__any_wood_planks__";
-    private static final String KEY_ANY_STICK       = "__any_stick__";
+    private static final String KEY_ANY_STICK = "__any_stick__";
 
     // Type-specific wood sentinels for recipes that need exact wood types (e.g., Spruce Fence)
-    private static final String KEY_OAK_WOOD       = "__oak_wood__";
-    private static final String KEY_SPRUCE_WOOD    = "__spruce_wood__";
-    private static final String KEY_BIRCH_WOOD     = "__birch_wood__";
-    private static final String KEY_JUNGLE_WOOD    = "__jungle_wood__";
-    private static final String KEY_ACACIA_WOOD    = "__acacia_wood__";
-    private static final String KEY_DARK_OAK_WOOD  = "__dark_oak_wood__";
-    private static final String KEY_MANGROVE_WOOD  = "__mangrove_wood__";
-    private static final String KEY_CHERRY_WOOD    = "__cherry_wood__";
-    private static final String KEY_BAMBOO_WOOD    = "__bamboo_wood__";
-    private static final String KEY_CRIMSON_WOOD   = "__crimson_wood__";
-    private static final String KEY_WARPED_WOOD    = "__warped_wood__";
+    private static final String KEY_OAK_WOOD = "__oak_wood__";
+    private static final String KEY_SPRUCE_WOOD = "__spruce_wood__";
+    private static final String KEY_BIRCH_WOOD = "__birch_wood__";
+    private static final String KEY_JUNGLE_WOOD = "__jungle_wood__";
+    private static final String KEY_ACACIA_WOOD = "__acacia_wood__";
+    private static final String KEY_DARK_OAK_WOOD = "__dark_oak_wood__";
+    private static final String KEY_MANGROVE_WOOD = "__mangrove_wood__";
+    private static final String KEY_CHERRY_WOOD = "__cherry_wood__";
+    private static final String KEY_BAMBOO_WOOD = "__bamboo_wood__";
+    private static final String KEY_CRIMSON_WOOD = "__crimson_wood__";
+    private static final String KEY_WARPED_WOOD = "__warped_wood__";
 
 
     // Wood/plank lists and stick set. These are populated programmatically below
@@ -93,13 +93,10 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             Items.JUNGLE_WOOD, Items.ACACIA_WOOD, Items.DARK_OAK_WOOD,
             Items.MANGROVE_WOOD, Items.CHERRY_WOOD,
             Items.CRIMSON_HYPHAE, Items.WARPED_HYPHAE,
-            // Basic storage and crafting
-            Items.CHEST,
-            Items.CRAFTING_TABLE,
-            // Basic materials
-            Items.COBBLESTONE, Items.STONE, Items.DIRT, Items.SAND,
             Items.IRON_ORE, Items.COPPER_ORE, Items.COAL_ORE, Items.GOLD_ORE,
             Items.LAPIS_ORE, Items.REDSTONE_ORE, Items.DIAMOND_ORE, Items.EMERALD_ORE,
+            // Basic materials
+            Items.COBBLESTONE, Items.STONE, Items.DIRT, Items.SAND,
             // Ingots/Gems
             Items.IRON_INGOT, Items.GOLD_INGOT, Items.COPPER_INGOT,
             Items.DIAMOND, Items.EMERALD, Items.LAPIS_LAZULI
@@ -113,13 +110,13 @@ public final class CraftCalculatorMod implements ClientModInitializer {
 
     static {
         // Build wood type maps programmatically to keep the source compact.
-        String[] types = new String[] {"oak","spruce","birch","jungle","acacia","dark_oak","mangrove","cherry","bamboo","crimson","warped"};
+        String[] types = new String[]{"oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry", "bamboo", "crimson", "warped"};
 
         Map<String, String[]> exceptions = new HashMap<>();
         // Fields that don't follow the simple naming pattern
-        exceptions.put("bamboo", new String[]{"BAMBOO_BLOCK","BAMBOO_PLANKS","BAMBOO"});
-        exceptions.put("crimson", new String[]{"CRIMSON_STEM","CRIMSON_PLANKS","CRIMSON_HYPHAE"});
-        exceptions.put("warped", new String[]{"WARPED_STEM","WARPED_PLANKS","WARPED_HYPHAE"});
+        exceptions.put("bamboo", new String[]{"BAMBOO_BLOCK", "BAMBOO_PLANKS", "BAMBOO"});
+        exceptions.put("crimson", new String[]{"CRIMSON_STEM", "CRIMSON_PLANKS", "CRIMSON_HYPHAE"});
+        exceptions.put("warped", new String[]{"WARPED_STEM", "WARPED_PLANKS", "WARPED_HYPHAE"});
 
         for (String type : types) {
             Set<Item> logs = new HashSet<>();
@@ -135,15 +132,26 @@ public final class CraftCalculatorMod implements ClientModInitializer {
                             if (fname.contains("PLANK")) planks.add(it);
                             else logs.add(it);
                         }
-                    } catch (ReflectiveOperationException ignored) {}
+                    } catch (ReflectiveOperationException ignored) {
+                    }
                 }
             } else {
                 // Common naming conventions: {TYPE}_LOG, STRIPPED_{TYPE}_LOG, {TYPE}_WOOD and {TYPE}_PLANKS
-                String[] logNames = new String[] { upper + "_LOG", "STRIPPED_" + upper + "_LOG", upper + "_WOOD" };
+                String[] logNames = new String[]{upper + "_LOG", "STRIPPED_" + upper + "_LOG", upper + "_WOOD"};
                 for (String ln : logNames) {
-                    try { Field f = Items.class.getField(ln); Object v = f.get(null); if (v instanceof Item it) logs.add(it); } catch (Exception ignored) {}
+                    try {
+                        Field f = Items.class.getField(ln);
+                        Object v = f.get(null);
+                        if (v instanceof Item it) logs.add(it);
+                    } catch (Exception ignored) {
+                    }
                 }
-                try { Field p = Items.class.getField(upper + "_PLANKS"); Object pv = p.get(null); if (pv instanceof Item it) planks.add(it); } catch (Exception ignored) {}
+                try {
+                    Field p = Items.class.getField(upper + "_PLANKS");
+                    Object pv = p.get(null);
+                    if (pv instanceof Item it) planks.add(it);
+                } catch (Exception ignored) {
+                }
             }
 
             if (!logs.isEmpty()) WOOD_TYPE_LOGS.put(type, Set.copyOf(logs));
@@ -202,66 +210,79 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             String literal) {
         dispatcher.register(
                 ClientCommands.literal(literal)
-                        .then(ClientCommands.literal("testcrafts").executes(CraftCalculatorMod::testCrafts))
+//                        .then(ClientCommands.literal("testcrafts").executes(CraftCalculatorMod::testCrafts))
                         .then(ClientCommands.argument("input", StringArgumentType.greedyString())
                                 .suggests(CraftCalculatorMod::suggestItems)
                                 .executes(CraftCalculatorMod::execute)));
     }
 
-    // Command: /cc testcrafts
-    private static int testCrafts(CommandContext<FabricClientCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null) throw NO_WORLD.create();
-        if (!mc.isLocalServer())                   throw NOT_SINGLEPLAYER.create();
-        if (mc.getSingleplayerServer() == null)    throw NOT_SINGLEPLAYER.create();
-
-        RecipeManager rm = mc.getSingleplayerServer().getRecipeManager();
-
-        List<String> report = new ArrayList<>();
-        for (RecipeHolder<?> h : rm.getRecipes()) {
-            if (!(h.value() instanceof CraftingRecipe cr)) continue;
-            String idStr = h.id().toString();
-            ItemStack out = getOutputStack(cr);
-            String outDesc = out.isEmpty() ? "<empty>" : (itemKey(out.getItem()) + " x" + out.getCount());
-            List<String> problems = new ArrayList<>();
-
-            if (out.isEmpty()) problems.add("Missing output");
-
-            int slot = 0;
-            for (Ingredient ing : cr.placementInfo().ingredients()) {
-                slot++;
-                if (ing.isEmpty()) continue;
-                List<Item> options = ing.items().map(hh -> hh.value()).filter(i -> i != Items.AIR).toList();
-                if (options.isEmpty()) {
-                    problems.add("Ingredient#" + slot + " has no options");
-                }
-            }
-
-            String line = idStr + " -> " + outDesc;
-            if (!problems.isEmpty()) line += "  PROBLEMS: " + String.join(", ", problems);
-            report.add(line);
-        }
-
-        try {
-            Path gameDir = mc.gameDirectory.toPath();
-            Path outDir = gameDir.resolve("mods").resolve("craftcalculator-testcrafts");
-            Files.createDirectories(outDir);
-
-            int fileIndex = 0;
-            for (int i = 0; i < report.size(); i += 100) {
-                List<String> part = report.subList(i, Math.min(i + 100, report.size()));
-                Path file = outDir.resolve(String.format("testcrafts_%03d.txt", ++fileIndex));
-                Files.write(file, part, StandardCharsets.UTF_8);
-            }
-
-            ctx.getSource().sendFeedback(Component.literal("Wrote " + report.size() + " recipes to " + outDir.toString()).withStyle(ChatFormatting.GREEN));
-        } catch (IOException e) {
-            sendError(ctx, Component.literal("Failed to write report: " + e.getMessage()));
-            return 0;
-        }
-
-        return Command.SINGLE_SUCCESS;
-    }
+    // Comando: // /cc testcrafts - Gera um relatório de todas as receitas de crafting para depuração
+//    private static int testCrafts(CommandContext<FabricClientCommandSource> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+//        Minecraft mc = Minecraft.getInstance();
+//        // // Verifica se o jogador está num mundo e se é o servidor local (Singleplayer)
+//        if (mc.level == null || mc.player == null) throw NO_WORLD.create();
+//        if (!mc.isLocalServer())                   throw NOT_SINGLEPLAYER.create();
+//        if (mc.getSingleplayerServer() == null)    throw NOT_SINGLEPLAYER.create();
+//
+//        // // Obtém o RecipeManager do servidor para aceder a todas as receitas registradas
+//        RecipeManager rm = mc.getSingleplayerServer().getRecipeManager();
+//
+//        List<String> report = new ArrayList<>();
+//        // // Itera sobre todas as receitas disponíveis no jogo
+//        for (RecipeHolder<?> h : rm.getRecipes()) {
+//            // // Filtra apenas receitas de crafting (bancada de trabalho/inventário)
+//            if (!(h.value() instanceof CraftingRecipe cr)) continue;
+//
+//            String idStr = h.id().toString();
+//            ItemStack out = getOutputStack(cr);
+//            String outDesc = out.isEmpty() ? "<empty>" : (itemKey(out.getItem()) + " x" + out.getCount());
+//            List<String> problems = new ArrayList<>();
+//
+//            // // Valida se a receita tem um item de saída definido
+//            if (out.isEmpty()) problems.add("Missing output");
+//
+//            int slot = 0;
+//            // // Verifica cada ingrediente da receita para identificar possíveis erros de carregamento
+//            for (Ingredient ing : cr.placementInfo().ingredients()) {
+//                slot++;
+//                if (ing.isEmpty()) continue;
+//                // // Obtém a lista de itens válidos para este ingrediente (ignorando AR)
+//                List<Item> options = ing.items().map(hh -> hh.value()).filter(i -> i != Items.AIR).toList();
+//                if (options.isEmpty()) {
+//                    problems.add("Ingredient#" + slot + " has no options");
+//                }
+//            }
+//
+//            // // Formata a linha do relatório para esta receita
+//            String line = idStr + " -> " + outDesc;
+//            if (!problems.isEmpty()) line += "  PROBLEMS: " + String.join(", ", problems);
+//            report.add(line);
+//        }
+//
+//        try {
+//            // // Define o diretório de saída para os ficheiros de relatório
+//            Path gameDir = mc.gameDirectory.toPath();
+//            Path outDir = gameDir.resolve("mods").resolve("craftcalculator-testcrafts");
+//            Files.createDirectories(outDir);
+//
+//            int fileIndex = 0;
+//            // // Divide o relatório em ficheiros de 100 linhas para facilitar a leitura
+//            for (int i = 0; i < report.size(); i += 100) {
+//                List<String> part = report.subList(i, Math.min(i + 100, report.size()));
+//                Path file = outDir.resolve(String.format("testcrafts_%03d.txt", ++fileIndex));
+//                Files.write(file, part, StandardCharsets.UTF_8);
+//            }
+//
+//            // // Envia mensagem de sucesso ao jogador
+//            ctx.getSource().sendFeedback(Component.literal("Wrote " + report.size() + " recipes to " + outDir.toString()).withStyle(ChatFormatting.GREEN));
+//        } catch (IOException e) {
+//            // // Caso ocorra um erro ao escrever os ficheiros, informa o jogador
+//            sendError(ctx, Component.literal("Failed to write report: " + e.getMessage()));
+//            return 0;
+//        }
+//
+//        return Command.SINGLE_SUCCESS;
+//    }
 
     // Main command handler - parses input and expands recipes
     private static int execute(CommandContext<FabricClientCommandSource> ctx)
@@ -269,19 +290,22 @@ public final class CraftCalculatorMod implements ClientModInitializer {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) throw NO_WORLD.create();
-        if (!mc.isLocalServer())                   throw NOT_SINGLEPLAYER.create();
-        if (mc.getSingleplayerServer() == null)    throw NOT_SINGLEPLAYER.create();
+        if (!mc.isLocalServer()) throw NOT_SINGLEPLAYER.create();
+        if (mc.getSingleplayerServer() == null) throw NOT_SINGLEPLAYER.create();
 
         // Parse "<item> <amount>"
         String input = StringArgumentType.getString(ctx, "input").trim();
         int split = input.lastIndexOf(' ');
         if (split <= 0 || split >= input.length() - 1) throw INVALID_USAGE.create();
 
-        String itemStr   = input.substring(0, split).trim();
+        String itemStr = input.substring(0, split).trim();
         String amountStr = input.substring(split + 1).trim();
         int amount;
-        try { amount = Integer.parseInt(amountStr); }
-        catch (NumberFormatException e) { throw INVALID_USAGE.create(); }
+        try {
+            amount = Integer.parseInt(amountStr);
+        } catch (NumberFormatException e) {
+            throw INVALID_USAGE.create();
+        }
         if (amount < 1) throw INVALID_USAGE.create();
 
         // Resolve item registry ID
@@ -307,13 +331,12 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         }
 
 
-        // Combine raw materials and craftable ingredient items into a single
-        // final list. We intentionally do NOT expand craftable ingredients
+        // We intentionally do NOT expand craftable ingredients
         // (e.g. Bow) to their raw components here — the user prefers to see
         // the craftable item itself listed.
         Map<String, Long> totalRaw = new HashMap<>();
         totalRaw.putAll(req.rawMaterials);
-        // Add craftable ingredients as their own entries (not expanded)
+        // Add craftable ingredients as their own entries
         for (Map.Entry<String, Long> e : req.craftItems.entrySet()) {
             totalRaw.merge(e.getKey(), e.getValue(), Long::sum);
         }
@@ -385,7 +408,12 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         // However, if this is the original target we're analysing (isRoot==true),
         // we avoid recording the target itself as a craft requirement to prevent
         // showing "1x Dispenser" as an ingredient for crafting a Dispenser.
-        if (!isRoot) out.craftItems.merge(targetKey, need, Long::sum);
+        if (!isRoot) {
+            out.craftItems.merge(targetKey, need, Long::sum);
+            // If it's not root, we stop here because we want to show the craftable item itself
+            // (e.g., Bow) instead of expanding it further into raw materials.
+            return true;
+        }
 
         if (guard.contains(targetKey)) return true;
         guard.add(targetKey);
@@ -407,23 +435,11 @@ public final class CraftCalculatorMod implements ClientModInitializer {
                     out.rawMaterials.merge(groupKey, crafts, Long::sum);
                 } else {
                     String opt = itemKey(options.get(0));
-                    Item optItem = resolveItem(opt);
-                    if (optItem != null && findRecipeFor(optItem, rm).isPresent() && !BASE_MATERIALS.contains(optItem)) {
-                        // Non-root recursive craftable ingredients should be recorded
-                        // as craft requirements.
-                        out.craftItems.merge(opt, crafts, Long::sum);
-                    } else if (BASE_MATERIALS.contains(optItem)) {
-                        out.rawMaterials.merge(opt, crafts, Long::sum);
-                    }
+                    collectRequirements(opt, crafts, rm, out, guard, false);
                 }
             } else {
                 String opt = itemKey(options.get(0));
-                Item optItem = resolveItem(opt);
-                if (optItem != null && findRecipeFor(optItem, rm).isPresent() && !BASE_MATERIALS.contains(optItem)) {
-                    out.craftItems.merge(opt, crafts, Long::sum);
-                } else if (BASE_MATERIALS.contains(optItem)) {
-                    out.rawMaterials.merge(opt, crafts, Long::sum);
-                }
+                collectRequirements(opt, crafts, rm, out, guard, false);
             }
         }
 
@@ -516,7 +532,7 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         }
 
         // Check for generic groups
-        if (options.stream().allMatch(WOOD_LOGS::contains))   return KEY_ANY_WOOD_LOG;
+        if (options.stream().allMatch(WOOD_LOGS::contains)) return KEY_ANY_WOOD_LOG;
         if (options.stream().allMatch(WOOD_PLANKS::contains)) return KEY_ANY_WOOD_PLANKS;
         if (options.stream().allMatch(STICK_ITEMS::contains)) return KEY_ANY_STICK;
         return null;
@@ -543,7 +559,8 @@ public final class CraftCalculatorMod implements ClientModInitializer {
                     ItemStack s = stacks.get(0);
                     if (s != null && !s.isEmpty()) return s;
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         return ItemStack.EMPTY;
     }
@@ -554,12 +571,14 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             Method m = slotDisplay.getClass().getMethod("resolveForStacks");
             Object r = m.invoke(slotDisplay);
             if (r instanceof List<?>) return (List<ItemStack>) r;
-        } catch (ReflectiveOperationException ignored) {}
+        } catch (ReflectiveOperationException ignored) {
+        }
         try {
             Method m = slotDisplay.getClass().getMethod("resolveForStacks", ContextMap.class);
             Object r = m.invoke(slotDisplay, getEmptyContextMap());
             if (r instanceof List<?>) return (List<ItemStack>) r;
-        } catch (ReflectiveOperationException ignored) {}
+        } catch (ReflectiveOperationException ignored) {
+        }
         return List.of();
     }
 
@@ -568,7 +587,8 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             Field f = ContextMap.class.getField("EMPTY");
             Object v = f.get(null);
             if (v instanceof ContextMap map) return map;
-        } catch (ReflectiveOperationException ignored) {}
+        } catch (ReflectiveOperationException ignored) {
+        }
         return null;
     }
 
@@ -593,20 +613,20 @@ public final class CraftCalculatorMod implements ClientModInitializer {
 
     private static String resolveDisplayName(String key) {
         return switch (key) {
-            case KEY_ANY_WOOD_LOG    -> "Any Wood Log";
-            case KEY_ANY_WOOD_PLANKS -> "Any Wood Planks";
-            case KEY_ANY_STICK       -> "Any Stick";
-            case KEY_OAK_WOOD        -> WOOD_TYPE_DISPLAY.get("oak") + " (Any Logs/Planks)";
-            case KEY_SPRUCE_WOOD     -> WOOD_TYPE_DISPLAY.get("spruce") + " (Any Logs/Planks)";
-            case KEY_BIRCH_WOOD      -> WOOD_TYPE_DISPLAY.get("birch") + " (Any Logs/Planks)";
-            case KEY_JUNGLE_WOOD     -> WOOD_TYPE_DISPLAY.get("jungle") + " (Any Logs/Planks)";
-            case KEY_ACACIA_WOOD     -> WOOD_TYPE_DISPLAY.get("acacia") + " (Any Logs/Planks)";
-            case KEY_DARK_OAK_WOOD   -> WOOD_TYPE_DISPLAY.get("dark_oak") + " (Any Logs/Planks)";
-            case KEY_MANGROVE_WOOD   -> WOOD_TYPE_DISPLAY.get("mangrove") + " (Any Logs/Planks)";
-            case KEY_CHERRY_WOOD     -> WOOD_TYPE_DISPLAY.get("cherry") + " (Any Logs/Planks)";
-            case KEY_BAMBOO_WOOD     -> WOOD_TYPE_DISPLAY.get("bamboo") + " (Any Logs/Planks)";
-            case KEY_CRIMSON_WOOD    -> WOOD_TYPE_DISPLAY.get("crimson") + " (Any Stems/Hyphae)";
-            case KEY_WARPED_WOOD     -> WOOD_TYPE_DISPLAY.get("warped") + " (Any Stems/Hyphae)";
+            case KEY_ANY_WOOD_LOG -> Component.translatable(MODID + ".group.any_wood_log").getString();
+            case KEY_ANY_WOOD_PLANKS -> Component.translatable(MODID + ".group.any_wood").getString();
+            case KEY_ANY_STICK -> Component.translatable(MODID + ".group.any_stick").getString();
+            case KEY_OAK_WOOD -> WOOD_TYPE_DISPLAY.get("oak") + " (Any Logs/Planks)";
+            case KEY_SPRUCE_WOOD -> WOOD_TYPE_DISPLAY.get("spruce") + " (Any Logs/Planks)";
+            case KEY_BIRCH_WOOD -> WOOD_TYPE_DISPLAY.get("birch") + " (Any Logs/Planks)";
+            case KEY_JUNGLE_WOOD -> WOOD_TYPE_DISPLAY.get("jungle") + " (Any Logs/Planks)";
+            case KEY_ACACIA_WOOD -> WOOD_TYPE_DISPLAY.get("acacia") + " (Any Logs/Planks)";
+            case KEY_DARK_OAK_WOOD -> WOOD_TYPE_DISPLAY.get("dark_oak") + " (Any Logs/Planks)";
+            case KEY_MANGROVE_WOOD -> WOOD_TYPE_DISPLAY.get("mangrove") + " (Any Logs/Planks)";
+            case KEY_CHERRY_WOOD -> WOOD_TYPE_DISPLAY.get("cherry") + " (Any Logs/Planks)";
+            case KEY_BAMBOO_WOOD -> WOOD_TYPE_DISPLAY.get("bamboo") + " (Any Logs/Planks)";
+            case KEY_CRIMSON_WOOD -> WOOD_TYPE_DISPLAY.get("crimson") + " (Any Stems/Hyphae)";
+            case KEY_WARPED_WOOD -> WOOD_TYPE_DISPLAY.get("warped") + " (Any Stems/Hyphae)";
             default -> {
                 Item item = resolveItem(key);
                 yield item != null ? item.getName(new ItemStack(item)).getString() : key;
