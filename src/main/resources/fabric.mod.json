@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "id": "cc_craftcalc",
-  "version": "1.4+26.1.2",
-  "name": "CraftCalc",
+  "id": "craft_calculator",
+  "version": "${version}",
+  "name": "CraftCalculator",
   "description": "Calculates required crafting ingredients for an item and amount",
   "authors": [
     "ArrozNaTwitch"
@@ -12,11 +12,11 @@
     "issues": "https://github.com/arroznatwitch/craftcalculator/issues"
   },
   "license": "MIT",
-  "icon": "assets/cc_craftcalc-icon/icon.png",
+  "icon": "assets/craft_calculator_icon/icon.png",
   "environment": "client",
   "entrypoints": {
     "client": [
-      "com.example.craftcalc.CraftCalculatorMod"
+      "com.craftcalculator.CraftCalculatorMod"
     ]
   },
   "depends": {

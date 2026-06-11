@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "craft_calculator",
+  "version": "${version}",
+  "name": "CraftCalculator",
+  "description": "Calculates required crafting ingredients for an item and amount",
+  "authors": [
+    "ArrozNaTwitch"
+  ],
+  "contact": {
+    "website": "https://github.com/arroznatwitch/craftcalculator",
+    "issues": "https://github.com/arroznatwitch/craftcalculator/issues"
+  },
+  "license": "MIT",
+  "icon": "assets/craft_calculator_icon/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.craftcalculator.CraftCalculatorMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.2",
+    "minecraft": "~26.1.2",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
