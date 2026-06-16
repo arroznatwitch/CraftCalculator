@@ -26,7 +26,6 @@ import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.display.RecipeDisplay;
 import net.minecraft.util.context.ContextMap;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -34,7 +33,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -43,13 +41,11 @@ public final class CraftCalculatorMod implements ClientModInitializer {
     private static final String MODID = "craft_calculator";
 
     // ─── Sentinel keys for multi-choice ingredient groups ───────────────────────
-    // Keys starting with "__" are never looked up in the item registry.
 
     private static final String KEY_ANY_WOOD_LOG    = "__any_wood_log__";
     private static final String KEY_ANY_WOOD_PLANKS = "__any_wood_planks__";
     private static final String KEY_ANY_STICK       = "__any_stick__";
 
-    // Per-wood-type sentinels (used when a recipe restricts to a specific wood family)
     private static final String KEY_OAK_WOOD      = "__oak_wood__";
     private static final String KEY_SPRUCE_WOOD   = "__spruce_wood__";
     private static final String KEY_BIRCH_WOOD    = "__birch_wood__";
@@ -68,16 +64,12 @@ public final class CraftCalculatorMod implements ClientModInitializer {
     private static final Set<Item> WOOD_PLANKS = new HashSet<>();
     private static final Set<Item> STICK_ITEMS = new HashSet<>();
 
-    /** Items that should never be expanded further — these are the leaf ingredients. */
     private static final Set<Item> BASE_MATERIALS = Set.of(
-            // All plank types
             Items.OAK_PLANKS, Items.SPRUCE_PLANKS, Items.BIRCH_PLANKS,
             Items.JUNGLE_PLANKS, Items.ACACIA_PLANKS, Items.DARK_OAK_PLANKS,
             Items.MANGROVE_PLANKS, Items.CHERRY_PLANKS, Items.BAMBOO_PLANKS,
             Items.CRIMSON_PLANKS, Items.WARPED_PLANKS,
-            // Sticks
             Items.STICK, Items.BAMBOO,
-            // Logs and wood blocks
             Items.OAK_LOG, Items.SPRUCE_LOG, Items.BIRCH_LOG,
             Items.JUNGLE_LOG, Items.ACACIA_LOG, Items.DARK_OAK_LOG,
             Items.MANGROVE_LOG, Items.CHERRY_LOG, Items.BAMBOO_BLOCK,
@@ -89,12 +81,9 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             Items.JUNGLE_WOOD, Items.ACACIA_WOOD, Items.DARK_OAK_WOOD,
             Items.MANGROVE_WOOD, Items.CHERRY_WOOD,
             Items.CRIMSON_HYPHAE, Items.WARPED_HYPHAE,
-            // Ores
             Items.IRON_ORE, Items.COPPER_ORE, Items.COAL_ORE, Items.GOLD_ORE,
             Items.LAPIS_ORE, Items.REDSTONE_ORE, Items.DIAMOND_ORE, Items.EMERALD_ORE,
-            // Basic blocks
             Items.COBBLESTONE, Items.STONE, Items.DIRT, Items.SAND,
-            // Ingots and gems
             Items.IRON_INGOT, Items.GOLD_INGOT, Items.COPPER_INGOT,
             Items.DIAMOND, Items.EMERALD, Items.LAPIS_LAZULI
     );
@@ -159,7 +148,6 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         STICK_ITEMS.add(Items.BAMBOO);
     }
 
-    /** Helper to avoid repeating try/catch in the static block. */
     private static void tryAddItem(String fieldName, Set<Item> planks, Set<Item> logs) {
         try {
             Object v = Items.class.getField(fieldName).get(null);
@@ -170,11 +158,7 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         } catch (ReflectiveOperationException ignored) {}
     }
 
-    // ─── Cached reflection handle for resolveForStacks ──────────────────────────
-    // Looked up once per display type and reused to avoid per-ingredient overhead.
     private static final Map<Class<?>, Method> RESOLVE_STACKS_CACHE = new HashMap<>();
-
-    // ─── Command exception types ─────────────────────────────────────────────────
 
     private static final SimpleCommandExceptionType ERR_INVALID_ITEM = new SimpleCommandExceptionType(
             Component.translatable(MODID + ".error.invalid_item"));
@@ -199,7 +183,7 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             String literal) {
         dispatcher.register(
                 ClientCommands.literal(literal)
-                        .then(ClientCommands.argument("item", StringArgumentType.string())
+                        .then(ClientCommands.argument("item", StringArgumentType.word())
                                 .suggests(CraftCalculatorMod::suggestItems)
                                 .then(ClientCommands.argument("amount", IntegerArgumentType.integer(1))
                                         .executes(CraftCalculatorMod::execute))));
@@ -218,7 +202,6 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         String itemStr = StringArgumentType.getString(ctx, "item").trim();
         int    amount  = IntegerArgumentType.getInteger(ctx, "amount");
 
-        // Allow bare names without namespace (e.g. "oak_planks" → "minecraft:oak_planks")
         Identifier id = Identifier.tryParse(itemStr);
         if (id == null && !itemStr.contains(":")) id = Identifier.tryParse("minecraft:" + itemStr);
         if (id == null) throw ERR_INVALID_ITEM.create();
@@ -227,8 +210,6 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         if (item == null || item == Items.AIR) throw ERR_INVALID_ITEM.create();
 
         RecipeManager rm = mc.getSingleplayerServer().getRecipeManager();
-
-        // Build a recipe index once per command invocation — avoids O(n) scans per ingredient.
         Map<Item, CraftingRecipe> recipeIndex = buildRecipeIndex(rm);
 
         Requirements req = new Requirements();
@@ -238,11 +219,9 @@ public final class CraftCalculatorMod implements ClientModInitializer {
             return 0;
         }
 
-        // Merge craftable sub-ingredients into the totals map
         Map<String, Long> totals = new HashMap<>(req.rawMaterials);
         req.craftItems.forEach((k, v) -> totals.merge(k, v, Long::sum));
 
-        // ─── Display ────────────────────────────────────────────────────────────
         String itemName = item.getName(new ItemStack(item)).getString();
         sendLine(ctx, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", ChatFormatting.YELLOW);
         ctx.getSource().sendFeedback(
@@ -251,7 +230,6 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         sendLine(ctx, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", ChatFormatting.YELLOW);
         ctx.getSource().sendFeedback(Component.literal(""));
 
-        // Sort by display name (what the player actually sees) instead of the internal registry key
         totals.entrySet().stream()
                 .sorted(Comparator.comparing(e -> resolveDisplayName(e.getKey())))
                 .forEach(e -> {
@@ -269,11 +247,6 @@ public final class CraftCalculatorMod implements ClientModInitializer {
 
     // ─── Recipe index ─────────────────────────────────────────────────────────────
 
-    /**
-     * Builds a map of Item → CraftingRecipe by scanning the RecipeManager once.
-     * This replaces the original O(n) linear scan that was repeated for every ingredient.
-     * When an item has multiple recipes, the first one found is used (vanilla behaviour).
-     */
     private static Map<Item, CraftingRecipe> buildRecipeIndex(RecipeManager rm) {
         Map<Item, CraftingRecipe> index = new HashMap<>();
         for (RecipeHolder<?> h : rm.getRecipes()) {
@@ -293,11 +266,6 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         final Map<String, Long> rawMaterials = new HashMap<>();
     }
 
-    /**
-     * Recursively collects raw materials and craftable sub-items for {@code targetKey}.
-     * When {@code isRoot} is true, the target itself is not added to craftItems (avoids
-     * "1x Dispenser" appearing when calculating a Dispenser).
-     */
     private static boolean collectRequirements(
             String targetKey, long need,
             Map<Item, CraftingRecipe> index, Requirements out,
@@ -326,13 +294,12 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         }
 
         if (!isRoot) {
-            // Non-root craftable items are shown as-is (e.g. "Bow" needed for a Dispenser)
             out.craftItems.merge(targetKey, need, Long::sum);
             return true;
         }
 
-        if (!guard.add(targetKey)) return true; // already visited — cycle guard
-        
+        if (!guard.add(targetKey)) return true;
+
         ItemStack output   = getOutputStack(recipe);
         int       produced = Math.max(1, output.getCount());
         long      crafts   = (long) Math.ceil((double) need / produced);
@@ -361,9 +328,9 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         return true;
     }
 
-    // ─── Shulker Box / pack info ──────────────────────────────────────────────────
+    // ─── Shulker Box info ─────────────────────────────────────────────────────────
 
-    private static final int SHULKER_CAPACITY = 27 * 64; // 1728 items per shulker box
+    private static final int SHULKER_CAPACITY = 27 * 64;
 
     private static String computePackInfo(String key, long qty) {
         if (isSentinel(key) || resolveItem(key) == null) return "";
@@ -374,20 +341,16 @@ public final class CraftCalculatorMod implements ClientModInitializer {
     // ─── Wood-group classification ────────────────────────────────────────────────
 
     private static String classifyGroup(List<Item> options) {
-        Set<Item> optionSet = Set.copyOf(options); // deduplicated, cheap containsAll target
+        Set<Item> optionSet = Set.copyOf(options);
 
-        // Check specific wood family first
         for (Map.Entry<String, Set<Item>> entry : WOOD_TYPE_LOGS.entrySet()) {
             String type = entry.getKey();
             Set<Item> planks = WOOD_TYPE_PLANKS.get(type);
-
-            // options must be a subset of this type's logs+planks
             boolean allMatch = optionSet.stream().allMatch(entry.getValue()::contains)
                     || (planks != null && optionSet.stream().allMatch(planks::contains));
             if (allMatch) return WOOD_TYPE_SENTINELS.get(type);
         }
 
-        // Generic groups
         if (WOOD_LOGS.containsAll(optionSet))   return KEY_ANY_WOOD_LOG;
         if (WOOD_PLANKS.containsAll(optionSet)) return KEY_ANY_WOOD_PLANKS;
         if (STICK_ITEMS.containsAll(optionSet)) return KEY_ANY_STICK;
@@ -409,19 +372,13 @@ public final class CraftCalculatorMod implements ClientModInitializer {
         return ItemStack.EMPTY;
     }
 
-    /**
-     * Resolves the ItemStack list from a SlotDisplay using reflection.
-     * The Method lookup is cached per display type to avoid repeated reflection overhead.
-     */
     @SuppressWarnings("unchecked")
     private static List<ItemStack> resolveStacks(Object slotDisplay) {
         Class<?> cls = slotDisplay.getClass();
 
         Method m = RESOLVE_STACKS_CACHE.computeIfAbsent(cls, c -> {
-            // Try no-arg version first (most common)
             try { return c.getMethod("resolveForStacks"); }
             catch (NoSuchMethodException ignored) {}
-            // Fallback: version that takes ContextMap
             try { return c.getMethod("resolveForStacks", ContextMap.class); }
             catch (NoSuchMethodException ignored) {}
             return null;
